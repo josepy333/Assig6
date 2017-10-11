@@ -492,5 +492,537 @@ class Hand
 
 /**
  * 
- * Game controller class: Holds all logic
+ * Card game model: Model for the Card game
+ *
  */
+class CardGameModel
+{
+ private static final int MAX_PLAYERS = 50;
+ private int cardsInPlayArea;
+ private int numPlayers;
+ private int numPacks;
+ private int numJokersPerPack;
+ private int numUnusedCardsPerPack;
+ private int numCardsPerHand;
+ private Deck deck;
+ private Hand[] hand;
+ private Card[] unusedCardsPerPack;   // an array holding the cards not used
+ private Card[][] playArea;
+ private int[] scores;
+ private int[] topStacks;
+
+
+ /**
+  *   
+  * Constructor for the model
+  */
+ public CardGameModel(int numPacks, int numJokersPerPack,
+                      int numUnusedCardsPerPack, Card[] unusedCardsPerPack,
+                      int numPlayers, int numCardsPerHand, int cardsInPlayArea)
+ {
+    // filter bad values
+    if (numPacks < 1 || numPacks > 6)
+    {
+       numPacks = 1;
+    }
+    if (numJokersPerPack < 0 || numJokersPerPack > 4)
+    {
+       numJokersPerPack = 0;
+    }
+    if (numUnusedCardsPerPack < 0 || numUnusedCardsPerPack > 50) //  > 1 card
+    {
+       numUnusedCardsPerPack = 0;
+    }
+    if (numPlayers < 1 || numPlayers > MAX_PLAYERS)
+    {
+       numPlayers = 4;
+    }
+    // one of many ways to assure at least one full deal to all players
+    if (numCardsPerHand < 1 || numCardsPerHand > numPacks * (52 + numJokersPerPack - numUnusedCardsPerPack) / numPlayers)
+    {
+       numCardsPerHand = numPacks * (52 - numUnusedCardsPerPack) / numPlayers;
+    }
+
+    scores = new int[numPlayers]; // init container for player scores
+
+
+    this.unusedCardsPerPack = new Card[numUnusedCardsPerPack];
+    this.hand = new Hand[numPlayers];
+    for (int i = 0; i < numPlayers; i++)
+    {
+       this.hand[i] = new Hand();
+    }
+    deck = new Deck(numPacks);
+
+    this.numPacks = numPacks;
+    this.numJokersPerPack = numJokersPerPack;
+    this.numUnusedCardsPerPack = numUnusedCardsPerPack;
+    this.numPlayers = numPlayers;
+    this.numCardsPerHand = numCardsPerHand;
+    for (int i = 0; i < numUnusedCardsPerPack; i++)
+    {
+       this.unusedCardsPerPack[i] = unusedCardsPerPack[i];
+    }
+
+    // prepare deck and shuffle
+    newGame();
+    this.cardsInPlayArea = cardsInPlayArea;
+
+ }
+
+ /**
+  * Default constructor
+  */
+ public CardGameModel()
+ {
+    this(1, 0, 0, null, 4, 13, 2);
+ }
+
+ /**
+  * Accessor method for getting the hand
+  */
+ public Hand getHand(int i)
+ {
+    if (i < 0 || i >= numPlayers)
+    {
+       return new Hand();
+    }
+    return hand[i];
+ }
+
+ /**
+  * Accessor method for number of players
+  */
+ public int getNumPlayers()
+ {
+    return numPlayers;
+ }
+
+ /**
+  * Accessor method for number of cards per hand
+  */
+ public int getNumCardsPerHand()
+ {
+    return numCardsPerHand;
+ }
+
+ /**
+  * Accessor method for 2d array of play area
+  */
+ public Card[][] getPlayArea()
+ {
+    return playArea;
+ }
+
+ /**
+  * Method to get the number of cards in the indexed play area
+  */
+ public int numCardsInPlayArea(int playerAreaIndex)
+ {
+    return topStacks[playerAreaIndex];
+ }
+
+ public int totalCardsInPlay()
+ {
+    int total = 0;
+    for (int i = 0; i < topStacks.length; i++)
+    {
+       total += topStacks[i];
+    }
+    return total;
+ }
+
+
+ public Card getCardFromDeck()
+ {
+    return deck.dealCard();
+ }
+
+ public int getNumCardsRemainingInDeck()
+ {
+    return deck.getNumCards();
+ }
+
+ 
+ public void newGame()
+ {
+    // set play area
+    playArea = new Card[numPlayers][numPacks * numPlayers * (52 + numJokersPerPack - numUnusedCardsPerPack)];
+
+    topStacks = new int[numPlayers];
+    for (int i = 0; i < numPlayers; i++)
+    {
+       topStacks[i] = 0;
+    }
+    resetScores();
+    // clear the hands
+    for (int i = 0; i < numPlayers; i++)
+    {
+       hand[i].resetHand();
+    }
+
+    deck.init(numPacks);
+
+    // remove unused cards
+    for (int i = 0; i < numUnusedCardsPerPack; i++)
+    {
+       deck.removeCard(unusedCardsPerPack[i]);
+    }
+
+    // add jokers
+    for (int i = 0; i < numPacks; i++)
+    {
+       for (int j = 0; j < numJokersPerPack; j++)
+       {
+          deck.addCard(new Card('X', Suit.values()[j]));
+       }
+    }
+    // shuffle the cards
+    deck.shuffle();
+ }
+
+ /**
+  * Accessor method for computer card in play area
+  */
+ public Card getTopCardAtPlayAreaIndex(int index)
+ {
+    if (index == 0 || index == 1)
+    {
+       int topIndex = topStacks[index] == 0 ? topStacks[index] : topStacks[index] - 1;
+       final Card card = playArea[index][topIndex];
+       return card == null ? new Card('?', Suit.Spades) : card;
+    }
+    else
+    {
+       return new Card('?', Suit.Spades);
+    }
+ }
+
+ /**
+  * Method to deal cards to all players
+  */
+ public boolean deal()
+ {
+    boolean enoughCards = true;
+
+    // clear all hands
+    for (int i = 0; i < numPlayers; i++)
+    {
+       hand[i].resetHand();
+    }
+
+    for (int i = 0; i < numCardsPerHand && enoughCards; i++)
+    {
+       for (int j = 0; j < numPlayers; j++)
+       {
+          if (deck.getNumCards() > 0)
+          {
+             hand[j].takeCard(deck.dealCard());
+          }
+          else
+          {
+             enoughCards = false;
+             break;
+          }
+       }
+    }
+    return enoughCards;
+ }
+
+ /**
+  * Sorts every hand in play
+  */
+ public boolean sortHands()
+ {
+    for (int i = 0; i < numPlayers; i++)
+    {
+       hand[i].sort();
+    }
+    return true;
+ }
+
+ /**
+  * Puts the card at the top of the play area array at the area
+  * index.
+  */
+ public boolean placeCardInPlayArea(final Card card, int areaIndex)
+ {
+    try
+    {
+       playArea[areaIndex][topStacks[areaIndex]] = card;
+       topStacks[areaIndex] += 1;
+    }
+    catch (IndexOutOfBoundsException e)
+    {
+       e.printStackTrace();
+       return false;
+    }
+    return true;
+ }
+
+
+ public int getPlayerScore(int playerIndex)
+ {
+    return scores[playerIndex];
+ }
+
+ public boolean increaseScoreBy(int playerIndex, int scoreIncrement)
+ {
+    try
+    {
+       scores[playerIndex] += scoreIncrement;
+    }
+    catch (IndexOutOfBoundsException e)
+    {
+       return false;
+    }
+    return true;
+ }
+
+ /**
+  * Player at given index takes a card from the deck
+  */
+ public boolean takeCard(int playerIndex)
+ {
+    // returns false if either argument is bad
+    if (playerIndex < 0 || playerIndex > numPlayers - 1)
+    {
+       return false;
+    }
+
+    // Are there enough Cards?
+    return deck.getNumCards() > 0 && hand[playerIndex].takeCard(deck.dealCard());
+ }
+
+ /**
+  * Resets all players scores to zero
+  */
+ public boolean resetScores()
+ {
+    for (int i = 0; i < scores.length; i++)
+    {
+       scores[i] = 0;
+    }
+    return true;
+ }
+}
+
+/**
+ * The model for the timer
+ */
+class Timer extends Thread
+{
+   private int minutes, seconds;
+   private boolean timerOn, timerStarted;
+   private final static int WAIT = 1000;
+   private final TimerDisplay display;
+
+   /**
+    * Default constructor
+    */
+   public Timer(TimerDisplay displayIn)
+   {
+      minutes = 0;
+      seconds = 0;
+      timerOn = false;
+      display = displayIn;
+   }
+
+   /**
+    * Contains all of the needed code to operate the timer model
+    */
+   public void run()
+   {
+      timerStarted = true;
+      while (timerStarted)
+      {
+         doNothing(WAIT);
+         if (seconds < 59 && timerOn)
+         {
+            seconds++;
+         }
+         else if ((seconds >= 59) && timerOn)
+         {
+            seconds = 0;
+            minutes++;
+         }
+         if (timerOn)
+         {
+            printTime();
+            display.update(this);
+         }
+
+      }
+   }
+
+
+   public void stopTimer()
+   {
+      timerOn = false;
+   }
+
+
+   public void resumeTimer()
+   {
+      timerOn = true;
+   }
+
+   /**
+    * Method to check if timer is on
+    */
+   public boolean timerOn()
+   {
+      return timerOn;
+   }
+
+ 
+   public int getMinutes()
+   {
+      return minutes;
+   }
+
+
+   public int getSeconds()
+   {
+      return seconds;
+   }
+
+   /**
+    * Change minutes and seconds to milliseconds
+    */
+   public int getMilliseconds()
+   {
+      return (minutes * 60000) + (seconds * 1000);
+   }
+
+   /**
+    * Check if timer started
+    */
+   public boolean started()
+   {
+      return timerStarted;
+   }
+
+   public TimerDisplay getDisplayObject()
+   {
+      return display;
+   }
+
+   /**
+    * String representation for the timer
+    */
+   public String toString()
+   {
+      if (seconds < 10)
+      {
+         return String.format(" %s:0%s ", minutes, seconds);
+      }
+      else
+      {
+         return String.format(" %s:%s ", minutes, seconds);
+      }
+   }
+
+   /* 
+      Private helper method to test timer in console
+    */
+   private void printTime()
+   {
+      System.out.printf(toString());
+   }
+
+   /*
+   Private helper method pauses for waitTime miliseconds
+    */
+   private void doNothing(int waitTime)
+   {
+      try
+      {
+         Thread.sleep(waitTime);
+      }
+      catch (InterruptedException e)
+      {
+         e.printStackTrace();
+         System.exit(0);
+      }
+
+   }
+}
+
+/**
+ * View methods to intergrate Timer class into GUI interface
+ */
+class TimerDisplay extends JPanel
+{
+
+   public JButton startStopButton;
+
+   private JTextArea timerText;
+
+   private final int WIDTH = 200;
+   private final int HEIGHT = 80;
+
+   private String timeString;
+
+   /**
+    * Default constructor
+    */
+   public TimerDisplay()
+   {
+      super();
+      timeString = String.format(" %s:0%s ", 0, 0);
+      this.setSize(WIDTH, HEIGHT);
+      initTimerText();
+      initStartStopButton();
+   }
+
+   /**
+    * Constructor with a timeIn
+    */
+   public TimerDisplay(String timeIn)
+   {
+      this();
+      timeString = timeIn;
+      timerText.validate();
+   }
+
+   /**
+    * Refresh the timer panel
+    */
+   public void update(final Timer timer)
+   {
+      timerText.setText(timer.toString());
+      timerText.repaint();
+      timerText.validate();
+      startStopButton.repaint();
+      startStopButton.validate();
+      repaint();
+      validate();
+   }
+
+   /*
+      Private helper method for initializing the start/stop button
+    */
+   private void initStartStopButton()
+   {
+      startStopButton = new JButton("Start");
+      startStopButton.setVisible(true);
+      add(startStopButton);
+   }
+
+   /*
+      Private helper method to initialize the timer text object
+    */
+   private void initTimerText()
+   {
+      timerText = new JTextArea(timeString);
+      timerText.setBackground(Color.BLACK);
+      timerText.setForeground(Color.GREEN);
+      timerText.setFont(new Font(Font.DIALOG, Font.BOLD, 24));
+      add(timerText);
+   }
+}
+
+
+
+
