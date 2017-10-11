@@ -402,18 +402,21 @@ class Hand
    }
    
    // Method to play Card from Hand
-   public Card playCard(int index) {
-      if(index < 0 || index > numCards)
+   public Card playCard(int index) 
+   {
+      if(numCards == 0) //error
       {
-         return new Card('?', Suit.Diamonds);
+         //Creates a card that does not work
+         return new Card('M', Suit.Spades);
       }
-      Card card = new Card(myCards[index]); // cache temp location of desired card deep copy
+      //Decreases numCards
+      final Card card = myCards[index];
 
-      for(int i = index; i < myCards.length - 1; i++)
+      for(int i = index; i < numCards; i++)
       {
          myCards[i] = myCards[i + 1];
       }
-      myCards[numCards--] = null; // empty top card spot
+      myCards[numCards] = null; // empty top card spot
       return card; // return deep copy
    }
    
@@ -950,7 +953,7 @@ class Timer extends Thread
 }
 
 /**
- * View methods to intergrate Timer class into GUI interface
+ * View class to intergrate Timer class into GUI interface
  */
 class TimerDisplay extends JPanel
 {
@@ -1020,6 +1023,258 @@ class TimerDisplay extends JPanel
       timerText.setForeground(Color.GREEN);
       timerText.setFont(new Font(Font.DIALOG, Font.BOLD, 24));
       add(timerText);
+   }
+}
+
+/**
+ * View class that represents the game screen that the player will interact with
+ *
+ */
+class CardGameView extends JFrame
+{
+   private static final int MAX_CARDS_PER_HAND = 56;
+   private static final int MAX_PLAYERS = 2;
+   private int numCardsPerHand;
+   private int numPlayers;
+
+   // JPanel objects representing the sections of the Frame
+   public JPanel pnlComputerHand, pnlHumanHand, pnlPlayArea, pnlDashboard;
+   private JButton cantPlayBtn;
+   private JButton replayBtn;
+
+   /**
+    * Constructor for the JPanels
+    */
+   public CardGameView(String title, int numCardsPerHand, int numPlayers, int width, int height)
+   {
+      initDataMembers(numCardsPerHand, numPlayers);
+      initFrame(title);
+      setSize(width, height);
+      initReplayButton();
+      initCantPlayBtn();
+      initPanels();
+   }
+
+   /**
+    * Accessor method for number of cards allowed per hand
+    */
+   public int getNumCardsPerHand()
+   {
+      return numCardsPerHand;
+   }
+
+   public int getNumPlayers()
+   {
+      return numPlayers;
+   }
+
+   /**
+    * Method for replay button
+    */
+   public boolean replayButtonAction(Runnable action)
+   {
+      replayBtn.addMouseListener(new MouseAdapter()
+      {
+         /**
+          * Method to start a new game when the replay button is pressed
+          */
+         public void mousePressed(MouseEvent e)
+         {
+            action.run();
+         }
+      });
+      return true;
+   }
+
+   /**
+    * Method for can't play button
+    */
+   public boolean cantPlayButtonAction(Runnable action)
+   {
+      cantPlayBtn.addMouseListener(new MouseAdapter()
+      {
+         /**
+          * Method that starts when a user presses on a card they can't play
+          */
+         public void mousePressed(MouseEvent e)
+         {
+            action.run();
+         }
+      });
+      return true;
+   }
+
+   /**
+    * Set the replay button
+    */
+   public boolean enableReplayButton(boolean bool)
+   {
+      if(bool)
+      {
+         enableCantPlayButton(false);
+      }
+      replayBtn.setVisible(bool);
+      replayBtn.setEnabled(bool);
+      return true;
+   }
+
+   /**
+    * Set the can't play button
+    */
+   public boolean enableCantPlayButton(boolean bool)
+   {
+      cantPlayBtn.setVisible(bool);
+      cantPlayBtn.setEnabled(bool);
+      return true;
+   }
+
+
+   /*
+    * Private helper method for initializing the cantPlayButton button
+    */
+   private void initCantPlayBtn()
+   {
+      cantPlayBtn = new JButton("I cannot play");
+      int btnWidth = 100, btnHeight = 30;
+      cantPlayBtn.setBounds(20, 270, btnWidth, btnHeight);
+      enableCantPlayButton(false);
+      add(cantPlayBtn);
+   }
+
+   
+   private void initDataMembers(int numCardsPerHand, int numPlayers)
+   {
+      if (numCardsPerHand < 0)
+      {
+         numCardsPerHand = 7;
+      }
+      if (numPlayers <= 0)
+      {
+         numPlayers = 1;
+      }
+      this.numPlayers = numPlayers > MAX_PLAYERS ? MAX_PLAYERS : numPlayers;
+      this.numCardsPerHand = numCardsPerHand > MAX_CARDS_PER_HAND ? MAX_CARDS_PER_HAND : numCardsPerHand;
+   }
+
+
+   /**
+    * Sets the replay button
+    */
+   private void initReplayButton()
+   {
+      replayBtn = new JButton("Start Over");
+      int btnWidth = 200, btnHeight = 30;
+      replayBtn.setBounds((int) replayBtn.CENTER, (int) replayBtn.CENTER, btnWidth, btnHeight);
+      add(replayBtn);
+      replayBtn.setVisible(false);
+      replayBtn.setEnabled(false);
+   }
+
+   /**
+    * Sets the JFrame layout and title
+    */
+   private void initFrame(String title)
+   {
+      final BorderLayout layout = new BorderLayout();
+      setLayout(layout);
+      setTitle(title);
+   }
+
+   /**
+    * Set the JPanels
+    */
+   private void initPanels()
+   {
+      setupPanel(pnlComputerHand = new JPanel(), "Computer Hand", 0, 0, 100);
+      add(pnlComputerHand, BorderLayout.NORTH);
+      setupPanel(pnlPlayArea = new JPanel(), "Playing Area", 0, pnlComputerHand.getHeight(), 100);
+      pnlPlayArea.setLayout(new GridLayout(1, 2));
+      add(pnlPlayArea, BorderLayout.CENTER);
+      setupPanel(pnlHumanHand = new JPanel(), "Your Hand", 0, pnlComputerHand.getHeight() + pnlPlayArea.getHeight(), 100);
+      add(pnlHumanHand, BorderLayout.SOUTH);
+      pnlDashboard = new JPanel();
+      add(pnlDashboard, BorderLayout.WEST);
+   }
+
+   private void setupPanel(JPanel panel, String title, int x, int y, int minHeight)
+   {
+      // Create Title Border With Title at top left
+      final TitledBorder border = new TitledBorder(title);
+      border.setTitleJustification(TitledBorder.LEFT);
+      border.setTitlePosition(TitledBorder.TOP);
+
+      // Initialize JPanel
+      panel.setBorder(border);
+      panel.setLocation(x, y);
+      panel.setMinimumSize(new Dimension((int) panel.getSize().getWidth(), minHeight));
+      panel.setEnabled(true);
+      panel.setVisible(true);
+   }
+}
+
+class GUICard 
+{
+
+   private static Icon[][] iconCards = new ImageIcon[14][4];
+   private static Icon iconBack;
+   static boolean iconsLoaded = false;
+
+   static final char[] cardsValues = new char[]{'A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'X'};
+   static final char[] cardsSuits = new char[] {'C', 'D', 'H', 'S'};
+   static final String cardBack = "BK";
+
+   static void loadCardIcons() 
+   {
+      if (iconsLoaded) return;
+      for (int k = 0; k < cardsValues.length; k++) 
+      {
+         for (int j = 0; j < cardsSuits.length; j++)
+            iconCards[k][j] = new ImageIcon(String.format("images/%s%s.gif", turnIntIntoCardValue(k), turnIntIntoCardSuit(j)));
+      }
+      iconBack = new ImageIcon(String.format("images/%s.gif", cardBack));
+      iconsLoaded = true;
+   }
+
+   static public Icon getIcon(Card card) 
+   {
+      loadCardIcons();
+      return iconCards[valueAsInt(card)][suitAsInt(card)];
+   }
+
+   static public Icon getBackCardIcon()
+   {
+      loadCardIcons();
+      return iconBack;
+   }
+
+   static char turnIntIntoCardValue(int k) 
+   {
+      return cardsValues[k];
+   }
+
+   static char turnIntIntoCardSuit(int j) 
+   {
+      return cardsSuits[j];
+   }
+
+   private static int valueAsInt(Card card) 
+   {
+      for (int i = 0; i < cardsValues.length; i++) 
+      {
+         if (cardsValues[i] == card.getValue())
+            return i;
+      }
+      return -1;
+   }
+
+   private static int suitAsInt(Card card) 
+   {
+      for (int i = 0; i < cardsSuits.length; i++) 
+      {
+         if (card.getSuit().toString().charAt(0) == cardsSuits[i])
+            return i;
+      }
+      return -1;
    }
 }
 
